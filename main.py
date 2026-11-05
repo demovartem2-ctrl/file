@@ -1,37 +1,32 @@
 import os
-import asyncio
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message
+from telegram import Update
+from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.environ.get("BOT_TOKEN")
+PORT = int(os.environ.get("PORT", 8080))
+RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
 
-bot = Bot(token=TOKEN)
-dp = Dispatcher()
+async def get_photo_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo = update.message.photo[-1]
+    file_id = photo.file_id
+    await update.message.reply_text(f"ID этой фотографии:\n`{file_id}`", parse_mode="Markdown")
 
+def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(MessageHandler(filters.PHOTO, get_photo_id))
 
-@dp.message(F.photo)
-async def get_photo_id(message: Message):
-    photo = message.photo[-1]
-
-    await message.answer(
-        f"🖼 ID фотографии:\n\n"
-        f"<code>{photo.file_id}</code>",
-        parse_mode="HTML"
-    )
-
-
-@dp.message(F.document)
-async def get_document_id(message: Message):
-    await message.answer(
-        f"📁 ID файла:\n\n"
-        f"<code>{message.document.file_id}</code>",
-        parse_mode="HTML"
-    )
-
-
-async def main():
-    await dp.start_polling(bot)
-
+    if RENDER_EXTERNAL_URL:
+        # Режим Render: Webhook
+        webhook_url = f"{RENDER_EXTERNAL_URL}/webhook"
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path="webhook",
+            webhook_url=webhook_url
+        )
+    else:
+        # Локальный режим: Polling
+        app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
